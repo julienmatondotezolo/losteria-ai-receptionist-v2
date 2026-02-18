@@ -1,0 +1,327 @@
+<!DOCTYPE html>
+<html lang="nl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>L'Osteria AI Receptionist v2 - GPT-4o Test</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            max-width: 800px;
+            margin: 40px auto;
+            padding: 20px;
+            background: #f8f9fa;
+            color: #212529;
+        }
+        
+        .header {
+            text-align: center;
+            margin-bottom: 40px;
+        }
+        
+        .header h1 {
+            color: #8B5A2B;
+            margin-bottom: 10px;
+        }
+        
+        .header p {
+            color: #6c757d;
+            margin: 0;
+        }
+        
+        .test-container {
+            background: white;
+            border-radius: 12px;
+            padding: 30px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+            margin-bottom: 20px;
+        }
+        
+        .status-panel {
+            background: linear-gradient(135deg, #28a745, #20c997);
+            color: white;
+            padding: 20px;
+            border-radius: 12px;
+            margin-bottom: 30px;
+        }
+        
+        .status-panel h3 {
+            margin-top: 0;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        
+        .status-indicator {
+            width: 12px;
+            height: 12px;
+            background: #ffffff;
+            border-radius: 50%;
+            display: inline-block;
+            animation: pulse 2s infinite;
+        }
+        
+        @keyframes pulse {
+            0% { opacity: 1; }
+            50% { opacity: 0.5; }
+            100% { opacity: 1; }
+        }
+        
+        .conversation {
+            border: 2px solid #e9ecef;
+            border-radius: 12px;
+            height: 400px;
+            overflow-y: auto;
+            padding: 20px;
+            margin-bottom: 20px;
+            background: #ffffff;
+        }
+        
+        .message {
+            margin-bottom: 15px;
+            padding: 12px 16px;
+            border-radius: 18px;
+            max-width: 80%;
+            word-wrap: break-word;
+        }
+        
+        .user-message {
+            background: #007bff;
+            color: white;
+            margin-left: auto;
+            text-align: right;
+        }
+        
+        .ai-message {
+            background: #f8f9fa;
+            border: 1px solid #dee2e6;
+            margin-right: auto;
+        }
+        
+        .input-container {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 20px;
+        }
+        
+        .message-input {
+            flex: 1;
+            padding: 12px 16px;
+            border: 2px solid #e9ecef;
+            border-radius: 24px;
+            font-size: 16px;
+            outline: none;
+            transition: border-color 0.3s;
+        }
+        
+        .message-input:focus {
+            border-color: #007bff;
+        }
+        
+        .send-btn {
+            background: #007bff;
+            color: white;
+            border: none;
+            border-radius: 24px;
+            padding: 12px 24px;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: background-color 0.3s;
+        }
+        
+        .send-btn:hover {
+            background: #0056b3;
+        }
+        
+        .send-btn:disabled {
+            background: #6c757d;
+            cursor: not-allowed;
+        }
+        
+        .api-test {
+            background: #e3f2fd;
+            padding: 15px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+            font-family: 'Courier New', monospace;
+            font-size: 14px;
+        }
+        
+        .gpt-indicator {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            background: #28a745;
+            color: white;
+            padding: 4px 12px;
+            border-radius: 20px;
+            font-size: 12px;
+            font-weight: 600;
+            margin-bottom: 10px;
+        }
+        
+        .loading {
+            opacity: 0.6;
+            pointer-events: none;
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>🍝 L'Osteria AI Receptionist v2</h1>
+        <p>GPT-4o Powered Dutch Takeaway Assistant</p>
+    </div>
+    
+    <div class="test-container">
+        <div class="status-panel">
+            <h3>
+                <span class="status-indicator"></span>
+                GPT-4o Live System Status
+            </h3>
+            <div>
+                <strong>Language:</strong> Dutch (Default)<br>
+                <strong>Model:</strong> GPT-4o<br>
+                <strong>State:</strong> Direct Takeaway Flow<br>
+                <strong>Menu:</strong> <span id="menu-status">Loading...</span><br>
+                <strong>Response Mode:</strong> Real GPT-4o (No Demo Patterns)
+            </div>
+        </div>
+        
+        <div class="gpt-indicator">
+            🧠 GPT-4o Active - Real AI Responses
+        </div>
+        
+        <div class="conversation" id="conversation">
+            <div class="message ai-message">
+                <strong>Sofia (GPT-4o):</strong> Hallo! Met Sofia van L'Osteria Deerlijk. Hoe kan ik u helpen met uw bestelling?
+            </div>
+        </div>
+        
+        <div class="input-container">
+            <input type="text" id="messageInput" class="message-input" 
+                   placeholder="Type uw bericht (bijv. 'Wat voor pasta hebben jullie?')" 
+                   onkeypress="if(event.key==='Enter') sendMessage()">
+            <button onclick="sendMessage()" class="send-btn" id="sendBtn">Verstuur</button>
+        </div>
+        
+        <div class="api-test" id="api-status">
+            <strong>API Test:</strong> <span id="api-result">Testing GPT-4o connection...</span>
+        </div>
+    </div>
+
+    <script>
+        let conversationHistory = [];
+        let sessionId = 'test_' + Date.now(); // Unique session ID for conversation memory
+        
+        // Test GPT-4o connection on page load
+        window.onload = function() {
+            testGPTConnection();
+            loadMenuStatus();
+        };
+        
+        async function testGPTConnection() {
+            try {
+                const response = await fetch('/api/test-gpt');
+                const data = await response.json();
+                
+                if (data.gpt4o_available) {
+                    document.getElementById('api-result').innerHTML = `✅ GPT-4o Connected (${data.model_used}) - Sample: "${data.test_response.substring(0, 100)}..."`;
+                } else {
+                    document.getElementById('api-result').innerHTML = `❌ GPT-4o Not Available: ${data.error}`;
+                }
+            } catch (error) {
+                document.getElementById('api-result').innerHTML = `❌ API Error: ${error.message}`;
+            }
+        }
+        
+        async function loadMenuStatus() {
+            try {
+                const response = await fetch('/api/status');
+                const data = await response.json();
+                
+                if (data.menu_available) {
+                    document.getElementById('menu-status').textContent = `Loaded (${data.menu_last_updated})`;
+                } else {
+                    document.getElementById('menu-status').textContent = 'Not Available';
+                }
+            } catch (error) {
+                document.getElementById('menu-status').textContent = 'Error Loading';
+            }
+        }
+        
+        async function sendMessage() {
+            const input = document.getElementById('messageInput');
+            const message = input.value.trim();
+            
+            if (!message) return;
+            
+            // Add user message to conversation
+            addMessage('user', message);
+            input.value = '';
+            
+            // Show loading state
+            const sendBtn = document.getElementById('sendBtn');
+            sendBtn.disabled = true;
+            sendBtn.textContent = 'GPT-4o denkt...';
+            
+            try {
+                // Call real GPT-4o API with conversation memory
+                const aiResponse = await callRealGPT4o(message);
+                addMessage('ai', aiResponse);
+                
+            } catch (error) {
+                addMessage('ai', `Fout: ${error.message}`);
+            } finally {
+                sendBtn.disabled = false;
+                sendBtn.textContent = 'Verstuur';
+            }
+        }
+        
+        async function callRealGPT4o(userMessage) {
+            try {
+                // Create form data
+                const formData = new FormData();
+                formData.append('message', userMessage);
+                formData.append('session_id', sessionId);
+                
+                // Call the real GPT-4o API with conversation memory
+                const response = await fetch('/api/chat', {
+                    method: 'POST',
+                    body: formData
+                });
+                
+                const data = await response.json();
+                
+                if (data.error) {
+                    throw new Error(data.error);
+                }
+                
+                return data.response;
+                
+            } catch (error) {
+                console.error('GPT-4o API Error:', error);
+                throw new Error(`API fout: ${error.message}`);
+            }
+        }
+        
+        function addMessage(sender, text) {
+            const conversation = document.getElementById('conversation');
+            const messageDiv = document.createElement('div');
+            messageDiv.className = `message ${sender}-message`;
+            
+            if (sender === 'ai') {
+                messageDiv.innerHTML = `<strong>Sofia (GPT-4o):</strong> ${text}`;
+            } else {
+                messageDiv.innerHTML = `<strong>U:</strong> ${text}`;
+            }
+            
+            conversation.appendChild(messageDiv);
+            conversation.scrollTop = conversation.scrollHeight;
+            
+            // Store in history
+            conversationHistory.push({sender, text});
+        }
+    </script>
+</body>
+</html>

@@ -16,7 +16,8 @@
 - ⚡ **Ultra-fast response** with Cartesia TTS (100ms)
 - 🇮🇹🇳🇱🇫🇷 **Multilingual** (Italian, Dutch, French)
 - 📞 **Multi-call handling** with async WebSockets
-- 🍝 **Restaurant intelligence** with GPT-4o menu knowledge
+- 🍝 **Live menu integration** fetches from Ada API (ada.mindgen.app/api/v1/menu)
+- 🧠 **Restaurant intelligence** with GPT-4o menu knowledge
 - 🔄 **Seamless transfers** to restaurant staff
 
 ## 🆚 vs v1 Comparison
@@ -61,7 +62,24 @@ python main.py
 curl http://localhost:5010/api/health
 ```
 
-### 4. VPS Deployment
+### 4. Test Interface
+
+```bash
+# Start local server
+python main.py
+
+# Open test interface in browser
+open http://localhost:5010
+```
+
+The test interface provides:
+- **Call Button** to simulate incoming calls
+- **Number pad** for option selection (1-4)
+- **Text input** for natural conversation
+- **Flow visualization** showing call states
+- **Language switching** testing
+
+### 5. VPS Deployment
 
 ```bash
 # Upload to VPS
@@ -101,18 +119,23 @@ server {
 }
 ```
 
-## 🎯 Call Flow
+## 🎯 Structured Call Flow
 
-1. **Customer calls** → Twilio receives
-2. **TwiML responds** → "Ciao! Un momento..." + starts Media Stream
-3. **WebSocket opens** → Real-time audio connection established
-4. **Welcome message** → AI speaks first greeting
-5. **Conversation loop:**
-   - Customer speaks → OpenAI Whisper transcribes
-   - GPT-4o generates intelligent response
-   - Cartesia converts to speech
-   - Audio streams back to caller
-6. **Transfer if needed** → Connect to restaurant
+1. **Welcome** → Multilingual greeting, language selection (1-4)
+2. **Language Selection:**
+   - Dutch (1) / French (2) / Italian (3) / English (4)
+3. **Menu Options** (in selected language):
+   - Takeaway (1) → Sofia AI assistant
+   - Reservation (2) → Transfer to restaurant
+   - Other Questions (3) → Transfer to restaurant
+4. **Takeaway Flow:**
+   - Natural conversation with Sofia
+   - Live menu integration from Ada API
+   - Order assistance with focus management
+   - Professional transfer if needed (no hold)
+5. **Transfer Flow:**
+   - "You will not be put on hold"
+   - Immediate connection to restaurant
 
 ## 🔧 Configuration
 
@@ -127,9 +150,13 @@ server {
 - Brief responses (max 2 sentences)
 - Handles: bookings, menu, hours, directions
 
-## 📊 Monitoring
+## 📊 Monitoring & Testing
 
 ```bash
+# Test interface (browser)
+open http://localhost:5010
+# or https://adaphone-v2.mindgen.app
+
 # Check service status
 curl https://adaphone-v2.mindgen.app/api/status
 
