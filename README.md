@@ -1,199 +1,182 @@
-# L'Osteria AI Receptionist v2
+# 🍝 L'Osteria AI Receptionist v2
 
-**Real-time conversational AI receptionist with ultra-low latency**
+Revolutionary GPT-4o powered phone receptionist for L'Osteria Deerlijk with real-time conversation, complete menu knowledge, and professional Dutch service.
 
-## 🚀 Tech Stack
+## ✨ Key Features
 
-- **FastAPI + WebSockets** - Async Python backend
-- **Twilio Media Streams** - Real-time audio streaming
-- **GPT-4o** - Superior restaurant intelligence & natural conversation
-- **Cartesia Sonic** - Ultra-low latency TTS (100ms response)
-- **Async Architecture** - Handle multiple calls simultaneously
+- 🧠 **GPT-4o Intelligence** - Real conversation memory, no demo patterns
+- 🇳🇱 **Dutch Default** - Native Dutch language throughout entire system
+- 📋 **Complete Menu Knowledge** - Live integration with Ada menu API
+- 📞 **Professional Call Transfer** - Hold music and seamless handoff
+- 🎯 **Direct Takeaway Flow** - Skip language selection, instant service
+- ⚡ **Real-time Streaming** - Cartesia ultra-low latency TTS
+- 💬 **Conversation Memory** - Remembers context throughout call
 
-## ✨ Features
+## 🚀 Quick Deployment
 
-- 🎙️ **Real-time conversation** (no menu prompts)
-- ⚡ **Ultra-fast response** with Cartesia TTS (100ms)
-- 🇮🇹🇳🇱🇫🇷 **Multilingual** (Italian, Dutch, French)
-- 📞 **Multi-call handling** with async WebSockets
-- 🍝 **Live menu integration** fetches from Ada API (ada.mindgen.app/api/v1/menu)
-- 🧠 **Restaurant intelligence** with GPT-4o menu knowledge
-- 🔄 **Seamless transfers** to restaurant staff
-
-## 🆚 vs v1 Comparison
-
-| Feature | v1 (Current) | v2 (New) |
-|---------|-------------|----------|
-| **Architecture** | Node.js webhook | Python async WebSocket |
-| **Conversation** | Menu prompts | Real-time chat |
-| **Response Time** | 2-3 seconds | ~100ms |
-| **Concurrency** | Blocking calls | Async multi-call |
-| **AI Model** | GPT-4 (basic) | GPT-4o (restaurant optimized) |
-| **TTS** | Twilio basic | Cartesia (broadcast quality) |
-| **Experience** | Phone tree | Natural conversation |
-
-## 🛠️ Setup
-
-### 1. Environment Setup
-
+### 1. Clone & Deploy
 ```bash
-# Copy environment template
-cp .env.example .env
-
-# Install Python dependencies  
-pip install -r requirements.txt
+# Deploy to VPS (run on your VPS)
+ssh root@46.224.93.79 'bash -s' < deploy.sh
 ```
 
-### 2. API Keys Required
-
+### 2. Configure API Keys
 ```bash
-# API keys required:
-OPENAI_API_KEY=sk-...       # platform.openai.com
-CARTESIA_API_KEY=...        # cartesia.ai
+# Edit production environment
+nano /root/app/losteria-ai-receptionist-v2/.env
+
+# Add your keys:
+TWILIO_ACCOUNT_SID=your_account_sid
+TWILIO_AUTH_TOKEN=your_auth_token
+OPENAI_API_KEY=your_openai_key
+CARTESIA_API_KEY=sk_car_tAmVFvmyCW3dGD6rvGCkuJ
 ```
 
-### 3. Local Development
-
+### 3. Restart Service
 ```bash
-# Start development server
-python main.py
-
-# Test health check
-curl http://localhost:5010/api/health
+pm2 restart losteria-ai-receptionist-v2
 ```
 
-### 4. Test Interface
-
+### 4. Update Twilio Webhook
 ```bash
-# Start local server
-python main.py
-
-# Open test interface in browser
-open http://localhost:5010
+python3 update_twilio_webhook.py
 ```
 
-The test interface provides:
-- **Call Button** to simulate incoming calls
-- **Number pad** for option selection (1-4)
-- **Text input** for natural conversation
-- **Flow visualization** showing call states
-- **Language switching** testing
+## 🌐 Production URLs
 
-### 5. VPS Deployment
+- **Service**: https://adaphone-v2.mindgen.app
+- **Test Interface**: https://adaphone-v2.mindgen.app/
+- **API Status**: https://adaphone-v2.mindgen.app/api/status
+- **Health Check**: https://adaphone-v2.mindgen.app/api/health
 
-```bash
-# Upload to VPS
-scp -r . root@46.224.93.79:/root/app/adaphone-v2/
+## 🧪 Test the System
 
-# Install dependencies on VPS
-ssh root@46.224.93.79 "cd /root/app/adaphone-v2 && pip install -r requirements.txt"
+### Web Interface
+Visit https://adaphone-v2.mindgen.app/ to test:
+- Real GPT-4o conversation (no demo patterns)
+- Dutch language throughout  
+- Complete menu knowledge
+- Conversation memory
 
-# Start with PM2
-ssh root@46.224.93.79 "cd /root/app/adaphone-v2 && pm2 start ecosystem.config.js"
+### Phone Testing
+Call your Twilio number to test:
+- Direct Dutch greeting from Sofia
+- Intelligent takeaway conversation
+- Professional transfer with hold music
+
+## 🔧 Technical Stack
+
+### Core Technology
+- **FastAPI** - Async web framework
+- **GPT-4o** - Conversational AI with memory
+- **Cartesia TTS** - Ultra-low latency voice synthesis  
+- **Twilio Media Streams** - Real-time audio
+- **WebSockets** - Bidirectional communication
+
+### Architecture  
+```
+Phone Call → Twilio → WebSocket → GPT-4o → Cartesia → Audio Stream
 ```
 
-### 5. Nginx Configuration
-
-```nginx
-# Add to nginx sites-enabled
-server {
-    listen 443 ssl;
-    server_name adaphone-v2.mindgen.app;
-    
-    location / {
-        proxy_pass http://127.0.0.1:5010;
-        proxy_http_version 1.1;
-        proxy_set_header Upgrade $http_upgrade;
-        proxy_set_header Connection "upgrade";
-        proxy_set_header Host $host;
-        proxy_set_header X-Real-IP $remote_addr;
-    }
-    
-    # WebSocket support for Media Streams
-    location /ws/ {
-        proxy_pass http://127.0.0.1:5010;
-        proxy_http_version 1.1;
-        proxy_set_header Upgrade $http_upgrade;
-        proxy_set_header Connection "upgrade";
-    }
-}
+### Call Flow (v2)
+```
+Dutch Greeting → Takeaway Conversation (GPT-4o) → Transfer with Hold Music
 ```
 
-## 🎯 Structured Call Flow
+## 📊 Monitoring
 
-1. **Welcome** → Multilingual greeting, language selection (1-4)
-2. **Language Selection:**
-   - Dutch (1) / French (2) / Italian (3) / English (4)
-3. **Menu Options** (in selected language):
-   - Takeaway (1) → Sofia AI assistant
-   - Reservation (2) → Transfer to restaurant
-   - Other Questions (3) → Transfer to restaurant
-4. **Takeaway Flow:**
-   - Natural conversation with Sofia
-   - Live menu integration from Ada API
-   - Order assistance with focus management
-   - Professional transfer if needed (no hold)
-5. **Transfer Flow:**
-   - "You will not be put on hold"
-   - Immediate connection to restaurant
-
-## 🔧 Configuration
-
-### Voice Selection
-- **Cartesia Voice ID**: `a0e99841-438c-4a64-b679-ae501e7d6091` (Warm Italian female)
-- **Language**: Italian (`it`)
-- **Audio Format**: PCM µ-law, 8kHz (Twilio compatible)
-
-### AI Personality
-- Warm, professional Italian receptionist
-- Family restaurant vibe (Bombini since 1964)
-- Brief responses (max 2 sentences)
-- Handles: bookings, menu, hours, directions
-
-## 📊 Monitoring & Testing
-
+### Service Status
 ```bash
-# Test interface (browser)
-open http://localhost:5010
-# or https://adaphone-v2.mindgen.app
-
-# Check service status
-curl https://adaphone-v2.mindgen.app/api/status
-
-# Monitor PM2 logs
-pm2 logs adaphone-v2
-
-# Active call sessions
+pm2 status
+pm2 logs losteria-ai-receptionist-v2
 curl https://adaphone-v2.mindgen.app/api/health
 ```
 
-## 🔄 Migration Strategy
-
-1. **Phase 1**: Deploy v2 on port 5010 (parallel to v1)
-2. **Phase 2**: Test extensively with dedicated number
-3. **Phase 3**: Update Twilio webhook to point to v2
-4. **Phase 4**: Monitor for 24h, rollback if issues
-5. **Phase 5**: Decommission v1
-
-## 🚨 Rollback Plan
-
-If issues arise:
+### Conversation Testing
 ```bash
-# Revert Twilio webhook to v1
-# Update: https://adaphone.mindgen.app/api/voice/webhook
+# Test GPT-4o memory
+python3 test_conversation_memory.py
 
-# Stop v2 service
-pm2 stop adaphone-v2
+# Verify Dutch default
+python3 test_dutch_default.py
+
+# Test hold music
+python3 test_hold_music.py
 ```
 
-## 🎭 Testing
+## ⚙️ Configuration
 
-Test the new system:
-- **Health**: `GET /api/health`
-- **Status**: `GET /api/status` 
-- **WebSocket**: Connect to `/ws/media/test123`
-- **Voice**: Call the Twilio number once deployed
+### Restaurant Settings
+- **Phone**: +32 56 25 63 83 (L'Osteria Deerlijk)
+- **Menu API**: https://ada.mindgen.app/api/v1/menu  
+- **Opening Hours**: Built into GPT-4o context
+- **Language**: Dutch (nl) by default
 
----
+### API Endpoints
+- `POST /api/voice/webhook` - Twilio voice webhook
+- `POST /api/chat` - GPT-4o conversation API
+- `GET /api/status` - Service status with features
+- `WebSocket /ws/media/{call_sid}` - Real-time audio
 
-**Goal**: Transform L'Osteria's phone experience from robotic menu navigation to natural conversation that feels like talking to a real Italian receptionist. 🇮🇹✨
+## 🚀 CI/CD Pipeline
+
+### Automatic Deployment
+GitHub Actions triggers on push to `main`:
+1. Deploy to VPS 46.224.93.79
+2. Update nginx configuration  
+3. Get SSL certificate
+4. Restart PM2 service
+5. Health check validation
+
+### Manual Override
+```bash
+# Force deployment
+ssh root@46.224.93.79 'bash -s' < deploy.sh
+
+# Update webhook
+python3 update_twilio_webhook.py
+```
+
+## 🛠️ Development
+
+### Local Testing
+```bash
+# Start development server
+python3 main.py
+# → http://localhost:5010
+
+# Test conversation flow
+curl -X POST http://localhost:5010/api/chat \
+  -d "message=Hallo Sofia&session_id=test123"
+```
+
+### Key Files
+- `main.py` - FastAPI application with GPT-4o integration
+- `test_interface.html` - Real GPT-4o conversation tester
+- `ecosystem.config.js` - PM2 production configuration
+- `deploy.sh` - VPS deployment script
+- `.github/workflows/deploy.yml` - CI/CD pipeline
+
+## 🎯 Production Checklist
+
+- ✅ GPT-4o with conversation memory
+- ✅ Dutch language default throughout
+- ✅ Complete L'Osteria menu integration
+- ✅ Professional hold music + transfer
+- ✅ SSL certificate (Let's Encrypt)
+- ✅ PM2 process management
+- ✅ nginx reverse proxy
+- ✅ GitHub Actions deployment
+- ✅ Health monitoring endpoints
+- ✅ Twilio webhook configuration
+
+## 📞 L'Osteria Deerlijk
+
+**Restaurant Details (Built into AI Context):**
+- Address: Stationsstraat 232, 8540 Deerlijk, België
+- Phone: +32 56 25 63 83
+- Family: Bombini since 1964
+- Specialties: Fresh handmade pasta, Napoletan pizza
+- Hours: Tue-Sun (Closed Mondays)
+
+Ready for production! 🇳🇱✨
