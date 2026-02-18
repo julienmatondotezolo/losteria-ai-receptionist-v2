@@ -16,7 +16,7 @@ from fastapi.responses import Response
 from fastapi.middleware.cors import CORSMiddleware
 import uvicorn
 from twilio.rest import Client
-from groq import Groq
+from openai import AsyncOpenAI
 import httpx
 from dotenv import load_dotenv
 
@@ -39,13 +39,13 @@ app.add_middleware(
 TWILIO_ACCOUNT_SID = os.getenv("TWILIO_ACCOUNT_SID")
 TWILIO_AUTH_TOKEN = os.getenv("TWILIO_AUTH_TOKEN")
 TWILIO_PHONE_NUMBER = os.getenv("TWILIO_PHONE_NUMBER")
-GROQ_API_KEY = os.getenv("GROQ_API_KEY")
+OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")  
 CARTESIA_API_KEY = os.getenv("CARTESIA_API_KEY")
 RESTAURANT_PHONE = os.getenv("RESTAURANT_PHONE", "+32562563983")
 
 # Initialize clients
 twilio_client = Client(TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN)
-groq_client = Groq(api_key=GROQ_API_KEY)
+openai_client = AsyncOpenAI(api_key=OPENAI_API_KEY)
 
 # Active call sessions
 active_sessions: Dict[str, dict] = {}
@@ -94,15 +94,17 @@ class CallSession:
             print(f"❌ Error in transcribe_and_respond: {e}")
     
     async def transcribe_audio(self, audio_bytes: bytes) -> str:
-        """Transcribe audio using Groq Whisper"""
+        """Transcribe audio using OpenAI Whisper"""
         try:
-            # Convert audio to format expected by Groq
-            audio_b64 = base64.b64encode(audio_bytes).decode()
+            # Create audio file for OpenAI API
+            from io import BytesIO
+            audio_file = BytesIO(audio_bytes)
+            audio_file.name = "audio.wav"
             
-            # Use Groq's Whisper model
-            transcription = groq_client.audio.transcriptions.create(
-                file=("audio.wav", audio_bytes, "audio/wav"),
-                model="whisper-large-v3",
+            # Use OpenAI's Whisper model
+            transcription = await openai_client.audio.transcriptions.create(
+                file=audio_file,
+                model="whisper-1",
                 language=self.language
             )
             
@@ -113,41 +115,57 @@ class CallSession:
             return ""
     
     async def generate_ai_response(self, user_message: str) -> str:
-        """Generate AI response using Groq Llama"""
+        """Generate AI response using GPT-4o"""
         try:
-            # Build conversation context
+            # Build conversation context with restaurant knowledge
             system_prompt = """Sei la receptionist AI de L'Osteria Deerlijk, un ristorante italiano autentico.
             
 Informazioni ristorante:
 - Nome: L'Osteria Deerlijk  
-- Indirizzo: Stationsstraat 232, 8540 Deerlijk
+- Indirizzo: Stationsstraat 232, 8540 Deerlijk, Belgio
 - Telefono: +32 56 25 63 83
-- Famiglia Bombini dal 1964
-- Chiuso lunedì e domenica
-- Cucina italiana autentica, specialità di pesce
+- Famiglia Bombini dal 1964 (tradizione autentica)
+- Chiuso: lunedì e domenica
+- Cucina: italiana autentica, specialità di pesce fresco
+- Atmosfera: familiare, tradizionale, accogliente
+
+Menu highlights:
+- Antipasti: bruschette, antipasto misto, crudo di tonno
+- Primi: risotto ai frutti di mare, spaghetti alle vongole, pasta fresca fatta in casa
+- Secondi: branzino al sale, orata alla griglia, osso buco alla milanese
+- Dolci: tiramisu della casa, panna cotta, cannoli siciliani
+- Vini: selezione italiana (Chianti, Prosecco, Barolo)
 
 Comportamento:
-- Rispondi in italiano caldo e accogliente
-- Per prenotazioni, trasferisci al ristorante
-- Per menu, descrivi i piatti con passione
-- Sii breve ma calorosa (massimo 2 frasi)
-- Se non capisci, chiedi gentilmente di ripetere"""
+- Rispondi nella lingua del cliente (italiano, olandese, francese)
+- Caldo e accogliente come la famiglia Bombini
+- Per prenotazioni: "La collego subito con il ristorante"
+- Per menu: descrivi con passione i piatti della tradizione
+- Suggerisci abbinamenti vino-cibo se richiesto
+- Menziona allergie/restrizioni dietetiche se necessario
+- Massimo 2-3 frasi per risposta
+- Se non capisci: "Scusi, può ripetere per favore?"
 
+Esempi:
+- "Benvenuti! Come posso aiutarvi oggi?"
+- "Il nostro risotto ai frutti di mare è preparato con pesce freschissimo del giorno"
+- "Per le prenotazioni la metto in contatto direttamente con il ristorante"
+            
             # Add conversation history
             messages = [{"role": "system", "content": system_prompt}]
-            for turn in self.conversation_history[-6:]:  # Keep last 6 turns
+            for turn in self.conversation_history[-8:]:  # Keep last 8 turns for context
                 messages.append(turn)
             messages.append({"role": "user", "content": user_message})
             
-            # Generate response with Groq Llama
-            chat_completion = groq_client.chat.completions.create(
+            # Generate response with GPT-4o
+            chat_completion = await openai_client.chat.completions.create(
                 messages=messages,
-                model="llama3-70b-8192",
+                model="gpt-4o",
                 temperature=0.7,
-                max_tokens=150,
-                top_p=1,
-                stop=None,
-                stream=False,
+                max_tokens=200,
+                top_p=0.9,
+                frequency_penalty=0.1,
+                presence_penalty=0.1
             )
             
             response = chat_completion.choices[0].message.content
@@ -306,20 +324,21 @@ async def get_status():
     """Get service status and active calls"""
     return {
         "service": "L'Osteria AI Receptionist v2",
-        "stack": "FastAPI + Twilio Media Streams + Groq + Cartesia",
+        "stack": "FastAPI + Twilio Media Streams + GPT-4o + Cartesia",
         "active_calls": len(active_sessions),
         "call_sessions": list(active_sessions.keys()),
         "features": [
             "Real-time conversation",
-            "Groq Llama 3 70B AI",
+            "GPT-4o restaurant intelligence", 
             "Cartesia ultra-low latency TTS",
-            "Async WebSocket architecture"
+            "Async WebSocket architecture",
+            "Multilingual support (IT/NL/FR)"
         ]
     }
 
 if __name__ == "__main__":
     print("🚀 Starting L'Osteria AI Receptionist v2...")
-    print("📋 Stack: FastAPI + Twilio Media Streams + Groq + Cartesia")
+    print("📋 Stack: FastAPI + Twilio Media Streams + GPT-4o + Cartesia")
     uvicorn.run(
         "main:app",
         host="0.0.0.0",

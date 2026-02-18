@@ -12,9 +12,9 @@ module.exports = {
       TWILIO_ACCOUNT_SID: 'YOUR_TWILIO_ACCOUNT_SID',
       TWILIO_AUTH_TOKEN: 'd0bfd8af55a682976d4458e18fff3d95', 
       TWILIO_PHONE_NUMBER: '+18287840392',
-      // AI Services - TODO: Add real API keys
-      GROQ_API_KEY: 'gsk-your-groq-key-here',
-      CARTESIA_API_KEY: 'your-cartesia-key-here',
+      // AI Services
+      OPENAI_API_KEY: 'your-openai-api-key-here',
+      CARTESIA_API_KEY: 'your-cartesia-api-key-here',
       // Restaurant Config
       RESTAURANT_PHONE: '+32_56_25_63_83',
       BOOKING_URL: 'https://l-osteria.be/',

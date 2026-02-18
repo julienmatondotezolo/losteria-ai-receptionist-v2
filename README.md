@@ -6,17 +6,17 @@
 
 - **FastAPI + WebSockets** - Async Python backend
 - **Twilio Media Streams** - Real-time audio streaming
-- **Groq Llama 3 70B** - Fast, cheap AI transcription & responses
+- **GPT-4o** - Superior restaurant intelligence & natural conversation
 - **Cartesia Sonic** - Ultra-low latency TTS (100ms response)
 - **Async Architecture** - Handle multiple calls simultaneously
 
 ## ✨ Features
 
 - 🎙️ **Real-time conversation** (no menu prompts)
-- ⚡ **100ms response time** with Cartesia
-- 🇮🇹 **Native Italian** conversation flow
+- ⚡ **Ultra-fast response** with Cartesia TTS (100ms)
+- 🇮🇹🇳🇱🇫🇷 **Multilingual** (Italian, Dutch, French)
 - 📞 **Multi-call handling** with async WebSockets
-- 💰 **Cost optimized** with Groq instead of OpenAI
+- 🍝 **Restaurant intelligence** with GPT-4o menu knowledge
 - 🔄 **Seamless transfers** to restaurant staff
 
 ## 🆚 vs v1 Comparison
@@ -27,7 +27,7 @@
 | **Conversation** | Menu prompts | Real-time chat |
 | **Response Time** | 2-3 seconds | ~100ms |
 | **Concurrency** | Blocking calls | Async multi-call |
-| **AI Model** | GPT-4 (expensive) | Groq Llama (10x cheaper) |
+| **AI Model** | GPT-4 (basic) | GPT-4o (restaurant optimized) |
 | **TTS** | Twilio basic | Cartesia (broadcast quality) |
 | **Experience** | Phone tree | Natural conversation |
 
@@ -46,8 +46,8 @@ pip install -r requirements.txt
 ### 2. API Keys Required
 
 ```bash
-# Get these API keys:
-GROQ_API_KEY=gsk-...        # groq.com
+# API keys required:
+OPENAI_API_KEY=sk-...       # platform.openai.com
 CARTESIA_API_KEY=...        # cartesia.ai
 ```
 
@@ -108,8 +108,8 @@ server {
 3. **WebSocket opens** → Real-time audio connection established
 4. **Welcome message** → AI speaks first greeting
 5. **Conversation loop:**
-   - Customer speaks → Groq transcribes
-   - Groq Llama generates response
+   - Customer speaks → OpenAI Whisper transcribes
+   - GPT-4o generates intelligent response
    - Cartesia converts to speech
    - Audio streams back to caller
 6. **Transfer if needed** → Connect to restaurant
