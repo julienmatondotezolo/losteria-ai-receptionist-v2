@@ -806,10 +806,11 @@ async def startup_event():
     print("✅ Service initialized")
 
 if __name__ == "__main__":
+    port = int(os.getenv("PORT", 5010))  # Production port 5010, fallback for testing
     uvicorn.run(
         "main:app",
-        host="0.0.0.0",
-        port=5011,  # Temporary port for testing
-        reload=True,
+        host="0.0.0.0", 
+        port=port,
+        reload=os.getenv("NODE_ENV") != "production",
         log_level="info"
     )

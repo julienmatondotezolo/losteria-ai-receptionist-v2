@@ -1,0 +1,146 @@
+name: 🚀 Deploy AI Receptionist v2 to VPS
+
+on:
+  push:
+    branches: [ main ]
+  workflow_dispatch:
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: 📥 Checkout code
+      uses: actions/checkout@v4
+      
+    - name: 🔐 Setup SSH
+      uses: webfactory/ssh-agent@v0.8.0
+      with:
+        ssh-private-key: ${{ secrets.VPS_SSH_KEY }}
+        
+    - name: 🚀 Deploy to VPS
+      run: |
+        # Deploy to VPS
+        ssh -o StrictHostKeyChecking=no root@46.224.93.79 '
+          set -e
+          echo "🚀 Starting deployment..."
+          
+          # Navigate to project directory
+          cd /root/app/losteria-ai-receptionist-v2 || {
+            echo "📁 Creating project directory..."
+            mkdir -p /root/app/losteria-ai-receptionist-v2
+            cd /root/app/losteria-ai-receptionist-v2
+            git clone https://github.com/julienmatondotezolo/losteria-ai-receptionist-v2.git .
+          }
+          
+          # Pull latest changes
+          echo "📦 Pulling latest code..."
+          git fetch origin
+          git reset --hard origin/main
+          
+          # Create .env file with production settings
+          echo "⚙️ Configuring environment..."
+          cat > .env << EOF
+        # Production Configuration
+        NODE_ENV=production
+        PORT=5010
+        
+        # API Keys (from secrets - placeholder)
+        TWILIO_ACCOUNT_SID=${{ secrets.TWILIO_ACCOUNT_SID }}
+        TWILIO_AUTH_TOKEN=${{ secrets.TWILIO_AUTH_TOKEN }}
+        TWILIO_PHONE_NUMBER=${{ secrets.TWILIO_PHONE_NUMBER }}
+        OPENAI_API_KEY=${{ secrets.OPENAI_API_KEY }}
+        CARTESIA_API_KEY=${{ secrets.CARTESIA_API_KEY }}
+        
+        # Restaurant Configuration
+        RESTAURANT_PHONE=+32562563983
+        EOF
+          
+          # Install/update Python dependencies
+          echo "📦 Installing dependencies..."
+          python3 -m pip install -r requirements.txt
+          
+          # Stop existing service
+          echo "🛑 Stopping existing service..."
+          pkill -f "python.*main.py" || true
+          sleep 2
+          
+          # Start new service with PM2
+          echo "🚀 Starting new service..."
+          pm2 delete losteria-ai-v2 || true
+          pm2 start ecosystem.config.js --name losteria-ai-v2
+          pm2 save
+          
+          # Configure nginx if needed
+          echo "🌐 Configuring nginx..."
+          cat > /etc/nginx/sites-available/adaphone-v2.mindgen.app << EOF
+        server {
+            listen 80;
+            server_name adaphone-v2.mindgen.app;
+            return 301 https://\$server_name\$request_uri;
+        }
+
+        server {
+            listen 443 ssl http2;
+            server_name adaphone-v2.mindgen.app;
+
+            ssl_certificate /etc/letsencrypt/live/adaphone-v2.mindgen.app/fullchain.pem;
+            ssl_certificate_key /etc/letsencrypt/live/adaphone-v2.mindgen.app/privkey.pem;
+
+            location / {
+                proxy_pass http://localhost:5010;
+                proxy_http_version 1.1;
+                proxy_set_header Upgrade \$http_upgrade;
+                proxy_set_header Connection "upgrade";
+                proxy_set_header Host \$host;
+                proxy_set_header X-Real-IP \$remote_addr;
+                proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
+                proxy_set_header X-Forwarded-Proto \$scheme;
+                proxy_cache_bypass \$http_upgrade;
+            }
+
+            location /ws/ {
+                proxy_pass http://localhost:5010;
+                proxy_http_version 1.1;
+                proxy_set_header Upgrade \$http_upgrade;
+                proxy_set_header Connection "upgrade";
+                proxy_set_header Host \$host;
+                proxy_set_header X-Real-IP \$remote_addr;
+                proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
+                proxy_set_header X-Forwarded-Proto \$scheme;
+            }
+        }
+        EOF
+          
+          # Enable nginx site
+          ln -sf /etc/nginx/sites-available/adaphone-v2.mindgen.app /etc/nginx/sites-enabled/
+          nginx -t && systemctl reload nginx
+          
+          # Get SSL certificate if needed
+          certbot certonly --nginx -d adaphone-v2.mindgen.app --non-interactive --agree-tos --email emji@mindgen.be || true
+          
+          # Check deployment
+          echo "🔍 Checking deployment..."
+          sleep 5
+          curl -f http://localhost:5010/api/health || {
+            echo "❌ Health check failed"
+            pm2 logs losteria-ai-v2 --lines 20
+            exit 1
+          }
+          
+          echo "✅ Deployment completed successfully!"
+          echo "🌐 Service available at: https://adaphone-v2.mindgen.app"
+          pm2 status
+        '
+        
+    - name: 🔔 Notify success
+      if: success()
+      run: |
+        echo "✅ Deployment successful!"
+        echo "🌐 Service: https://adaphone-v2.mindgen.app"
+        echo "📊 Status: https://adaphone-v2.mindgen.app/api/status"
+        
+    - name: 🚨 Notify failure
+      if: failure()
+      run: |
+        echo "❌ Deployment failed! Check logs above."
