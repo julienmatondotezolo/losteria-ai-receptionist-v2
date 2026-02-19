@@ -256,6 +256,7 @@ class CallSession:
     
     async def speak_language_options(self):
         """Play language selection message"""
+        print(f"🌐 Playing language selection message for call {self.call_sid}")
         message = (
             "Welcome to L'Osteria Deerlijk. "
             "Please select your language. "
@@ -264,14 +265,18 @@ class CallSession:
             "Per l'italiano, premere 3. " 
             "For English, press 4."
         )
+        print(f"🎵 TTS message: {message}")
         await self.speak_response(message)
+        print(f"🎯 Waiting for DTMF input...")
         self.waiting_for_dtmf = True
     
     async def speak_menu_options(self):
         """Play menu options in selected language"""
+        print(f"📋 Playing menu options for language: {self.selected_language}")
+        
         messages = {
             "nl": (
-                "Voor afhaalhall, druk op 1. "
+                "Voor afhaal, druk op 1. "
                 "Voor reservatie, druk op 2. "
                 "Voor andere vragen, druk op 3."
             ),
@@ -293,8 +298,17 @@ class CallSession:
         }
         
         message = messages.get(self.selected_language, messages["en"])
-        await self.speak_response(message)
-        self.waiting_for_dtmf = True
+        print(f"🎵 Menu TTS message: {message}")
+        
+        try:
+            await self.speak_response(message)
+            print(f"✅ Menu options TTS completed")
+            self.waiting_for_dtmf = True
+            print(f"🎯 Now waiting for menu selection...")
+        except Exception as e:
+            print(f"❌ Menu options TTS failed: {e}")
+            import traceback
+            traceback.print_exc()
     
     async def speak_takeaway_greeting(self):
         """Speak takeaway receptionist greeting"""
@@ -608,8 +622,11 @@ Antwoord ALTIJD in het Nederlands
     async def speak_response(self, text: str):
         """Convert text to speech using Cartesia and stream to call"""
         try:
+            print(f"🎵 Starting TTS for: {text[:50]}...")
+            
             # Use Cartesia for ultra-low latency TTS
-            async with httpx.AsyncClient() as client:
+            async with httpx.AsyncClient(timeout=10.0) as client:
+                print(f"🔑 Making Cartesia API call...")
                 response = await client.post(
                     "https://api.cartesia.ai/tts/bytes",
                     headers={
@@ -633,20 +650,29 @@ Antwoord ALTIJD in het Nederlands
                     }
                 )
                 
+                print(f"📡 Cartesia response: {response.status_code}")
+                
                 if response.status_code == 200:
                     audio_data = response.content
+                    print(f"🎶 Got audio data: {len(audio_data)} bytes")
                     await self.stream_audio_to_call(audio_data)
+                    print(f"✅ Audio streamed successfully")
                 else:
                     print(f"❌ TTS error: {response.status_code} - {response.text}")
                     
         except Exception as e:
             print(f"❌ Speech synthesis error: {e}")
+            import traceback
+            traceback.print_exc()
     
     async def stream_audio_to_call(self, audio_data: bytes):
         """Stream audio data to Twilio call via WebSocket"""
         try:
+            print(f"🔊 Streaming audio to call: {len(audio_data)} bytes")
+            
             # Encode audio for Twilio Media Streams
             audio_b64 = base64.b64encode(audio_data).decode()
+            print(f"📦 Base64 encoded: {len(audio_b64)} chars")
             
             # Send audio to Twilio
             message = {
@@ -657,10 +683,14 @@ Antwoord ALTIJD in het Nederlands
                 }
             }
             
+            print(f"📤 Sending audio message to WebSocket...")
             await self.websocket.send_text(json.dumps(message))
+            print(f"✅ Audio message sent successfully")
             
         except Exception as e:
             print(f"❌ Audio streaming error: {e}")
+            import traceback
+            traceback.print_exc()
     
     async def initiate_transfer(self):
         """Initiate call transfer to restaurant with hold music"""
@@ -689,12 +719,9 @@ async def voice_webhook(request: Request):
     
     print(f"📞 Incoming call from {from_number} (SID: {call_sid})")
     
-    # TwiML to start Media Streams in Dutch
+    # TwiML to start Media Streams immediately (no pre-message)
     twiml = f'''<?xml version="1.0" encoding="UTF-8"?>
 <Response>
-    <Say voice="alice" language="nl-NL">
-        Hallo! Welkom bij L'Osteria Deerlijk. Een ogenblik geduld...
-    </Say>
     <Connect>
         <Stream url="wss://adaphone-v2.mindgen.app/ws/media/{call_sid}" />
     </Connect>
