@@ -178,10 +178,11 @@ class CallSession:
         self.conversation_history = []
         self.audio_converter = TwilioAudioConverter()  # Use mulaw to WAV converter
         self.is_speaking = False
-        self.language = "nl"  # Default to Dutch
-        self.call_state = "takeaway"  # Skip language selection, go straight to takeaway
-        self.selected_language = "nl"  # Default to Dutch
-        self.selected_option = "takeaway"
+        self.language = None  # Will be set after language selection
+        self.call_state = "welcome"  # Start with welcome message
+        self.selected_language = None  # Will be set by DTMF
+        self.selected_option = None  # Will be set by DTMF
+        self.waiting_for_dtmf = False
         
     async def process_audio_chunk(self, base64_payload: str):
         """Process incoming mulaw audio chunk from Twilio"""
@@ -221,6 +222,119 @@ class CallSession:
         except Exception as e:
             print(f"❌ Error in transcribe_and_respond: {e}")
     
+    async def handle_dtmf(self, digit: str):
+        """Handle DTMF key press for menu navigation"""
+        print(f"🔢 DTMF received: {digit}")
+        
+        if self.call_state == "language_select":
+            language_map = {"1": "nl", "2": "fr", "3": "it", "4": "en"}
+            if digit in language_map:
+                self.selected_language = language_map[digit]
+                self.language = self.selected_language
+                print(f"🌐 Language selected: {self.selected_language}")
+                
+                # Move to menu selection
+                self.call_state = "menu_select" 
+                await self.speak_menu_options()
+            else:
+                await self.speak_language_options()  # Repeat if invalid
+                
+        elif self.call_state == "menu_select":
+            if digit == "1":
+                # Takeaway flow
+                self.selected_option = "takeaway"
+                self.call_state = "takeaway"
+                await self.speak_takeaway_greeting()
+            elif digit == "2":
+                # Reservation - redirect to restaurant
+                await self.speak_reservation_redirect()
+            elif digit == "3":  
+                # Other questions - redirect to restaurant
+                await self.speak_other_redirect()
+            else:
+                await self.speak_menu_options()  # Repeat if invalid
+    
+    async def speak_language_options(self):
+        """Play language selection message"""
+        message = (
+            "Welcome to L'Osteria Deerlijk. "
+            "Please select your language. "
+            "Voor Nederlands, druk op 1. "
+            "Pour le français, appuyez sur 2. "
+            "Per l'italiano, premere 3. " 
+            "For English, press 4."
+        )
+        await self.speak_response(message)
+        self.waiting_for_dtmf = True
+    
+    async def speak_menu_options(self):
+        """Play menu options in selected language"""
+        messages = {
+            "nl": (
+                "Voor afhaalhall, druk op 1. "
+                "Voor reservatie, druk op 2. "
+                "Voor andere vragen, druk op 3."
+            ),
+            "fr": (
+                "Pour commande à emporter, appuyez sur 1. "
+                "Pour réservation, appuyez sur 2. "
+                "Pour autres questions, appuyez sur 3."
+            ),
+            "it": (
+                "Per ordine da asporto, premere 1. "
+                "Per prenotazione, premere 2. "
+                "Per altre domande, premere 3."
+            ),
+            "en": (
+                "For takeaway order, press 1. "
+                "For reservation, press 2. "
+                "For other questions, press 3."
+            )
+        }
+        
+        message = messages.get(self.selected_language, messages["en"])
+        await self.speak_response(message)
+        self.waiting_for_dtmf = True
+    
+    async def speak_takeaway_greeting(self):
+        """Speak takeaway receptionist greeting"""
+        greetings = {
+            "nl": "Hallo! Met Sofia van L'Osteria Deerlijk. Hoe kan ik u helpen met uw afhaalbestelling?",
+            "fr": "Bonjour! Sofia de L'Osteria Deerlijk. Comment puis-je vous aider avec votre commande à emporter?",  
+            "it": "Ciao! Sofia di L'Osteria Deerlijk. Come posso aiutarla con il suo ordine da asporto?",
+            "en": "Hello! Sofia from L'Osteria Deerlijk. How can I help you with your takeaway order?"
+        }
+        
+        greeting = greetings.get(self.selected_language, greetings["en"])
+        await self.speak_response(greeting)
+        self.waiting_for_dtmf = False  # Now accept voice input
+    
+    async def speak_reservation_redirect(self):
+        """Redirect to restaurant for reservations"""  
+        messages = {
+            "nl": "Een ogenblik geduld, ik verbind u door naar het restaurant voor uw reservatie. Het nummer is +32 56 25 63 83.",
+            "fr": "Un moment s'il vous plaît, je vous transfère au restaurant pour votre réservation. Le numéro est +32 56 25 63 83.",
+            "it": "Un momento prego, la collego al ristorante per la sua prenotazione. Il numero è +32 56 25 63 83.",
+            "en": "One moment please, I'm connecting you to the restaurant for your reservation. The number is +32 56 25 63 83."
+        }
+        
+        message = messages.get(self.selected_language, messages["en"])
+        await self.speak_response(message)
+        # TODO: Implement actual call transfer
+    
+    async def speak_other_redirect(self):
+        """Redirect to restaurant for other questions"""
+        messages = {
+            "nl": "Een ogenblik geduld, ik verbind u door naar het restaurant voor uw vraag. Het nummer is +32 56 25 63 83.",
+            "fr": "Un moment s'il vous plaît, je vous transfère au restaurant pour votre question. Le numéro est +32 56 25 63 83.",
+            "it": "Un momento prego, la collego al ristorante per la sua domanda. Il numero è +32 56 25 63 83.",
+            "en": "One moment please, I'm connecting you to the restaurant for your question. The number is +32 56 25 63 83."
+        }
+        
+        message = messages.get(self.selected_language, messages["en"])
+        await self.speak_response(message)
+        # TODO: Implement actual call transfer
+    
     async def transcribe_audio(self, wav_file_path: str) -> str:
         """Transcribe audio using OpenAI Whisper"""
         if not openai_client:
@@ -244,8 +358,13 @@ class CallSession:
             return ""
     
     async def generate_ai_response(self, user_message: str) -> str:
-        """Generate AI response using GPT-4o with structured call flow"""
+        """Generate AI response using GPT-4o for takeaway conversations only"""
         try:
+            # This method only handles takeaway state (voice processing)
+            # Language/menu selection is handled by DTMF
+            if self.call_state != "takeaway":
+                return "Please use the keypad to make your selection."
+            
             # Fetch current menu if cache is old or empty
             if (not menu_cache["data"] or 
                 not menu_cache["last_updated"] or 
@@ -255,21 +374,20 @@ class CallSession:
             # Format current menu for AI
             current_menu = format_menu_for_ai(menu_cache["data"])
             
-            # Handle different call states
-            if self.call_state == "welcome":
-                return await self._handle_welcome_state(user_message)
-            elif self.call_state == "language_select":
-                return await self._handle_language_selection(user_message)
-            elif self.call_state == "menu_select":
-                return await self._handle_menu_selection(user_message)
-            elif self.call_state == "takeaway":
-                return await self._handle_takeaway_flow(user_message, current_menu)
-            else:
-                return self._get_transfer_message()
+            # Handle takeaway conversation
+            return await self._handle_takeaway_flow(user_message, current_menu)
                 
         except Exception as e:
             print(f"❌ AI generation error: {e}")
-            return "Mi dispiace, c'è stato un problema tecnico. La collego al ristorante."
+            
+            # Error message in selected language
+            error_messages = {
+                "nl": "Sorry, er is een technisch probleem. Ik verbind u door naar het restaurant.",
+                "fr": "Désolé, il y a un problème technique. Je vous transfère au restaurant.", 
+                "it": "Mi dispiace, c'è stato un problema tecnico. La collego al ristorante.",
+                "en": "Sorry, there's a technical problem. I'm connecting you to the restaurant."
+            }
+            return error_messages.get(self.selected_language, error_messages["en"])
     
     async def _handle_welcome_state(self, user_message: str) -> str:
         """Handle initial welcome and language selection"""
@@ -660,17 +778,25 @@ async def websocket_media_handler(websocket: WebSocket, call_sid: str):
                 
             elif event == "start":
                 print(f"🎬 Media stream started for {call_sid}")
-                # Send welcome message in Dutch (default language)
-                welcome = "Hallo! Met Sofia van L'Osteria Deerlijk. Hoe kan ik u helpen met uw bestelling?"
-                await session.speak_response(welcome)
+                # Start with welcome message and language selection
+                session.call_state = "language_select"
+                await session.speak_language_options()
                 
             elif event == "media":
-                # Process incoming audio
-                media = message.get("media", {})
-                payload = media.get("payload", "")
-                if payload:
-                    # Pass base64 payload directly to converter (don't decode)
-                    await session.process_audio_chunk(payload)
+                # Process incoming audio only if not waiting for DTMF
+                if not session.waiting_for_dtmf:
+                    media = message.get("media", {})
+                    payload = media.get("payload", "")
+                    if payload:
+                        # Pass base64 payload directly to converter (don't decode)
+                        await session.process_audio_chunk(payload)
+                        
+            elif event == "dtmf":
+                # Handle keypad input
+                dtmf_data = message.get("dtmf", {})
+                digit = dtmf_data.get("digit", "")
+                if digit:
+                    await session.handle_dtmf(digit)
                     
             elif event == "stop":
                 print(f"🛑 Media stream stopped for {call_sid}")
