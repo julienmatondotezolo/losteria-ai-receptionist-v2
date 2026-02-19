@@ -18,6 +18,7 @@ from fastapi.middleware.cors import CORSMiddleware
 import uvicorn
 from twilio.rest import Client
 from openai import AsyncOpenAI
+from audio_converter import TwilioAudioConverter
 import httpx
 from dotenv import load_dotenv
 
@@ -175,30 +176,36 @@ class CallSession:
         self.call_sid = call_sid
         self.websocket = websocket
         self.conversation_history = []
-        self.audio_buffer = b""
+        self.audio_converter = TwilioAudioConverter()  # Use mulaw to WAV converter
         self.is_speaking = False
         self.language = "nl"  # Default to Dutch
         self.call_state = "takeaway"  # Skip language selection, go straight to takeaway
         self.selected_language = "nl"  # Default to Dutch
         self.selected_option = "takeaway"
         
-    async def process_audio_chunk(self, audio_data: bytes):
-        """Process incoming audio chunk for transcription"""
-        self.audio_buffer += audio_data
+    async def process_audio_chunk(self, base64_payload: str):
+        """Process incoming mulaw audio chunk from Twilio"""
+        # Add audio chunk to converter buffer
+        self.audio_converter.add_audio_chunk(base64_payload)
         
-        # Process when we have enough audio (every ~1 second)
-        if len(self.audio_buffer) > 16000:  # ~1 second at 16kHz
+        # Transcribe when we have enough audio (1+ seconds)
+        if self.audio_converter.should_transcribe():
             await self.transcribe_and_respond()
-            self.audio_buffer = b""
     
     async def transcribe_and_respond(self):
         """Transcribe audio and generate AI response"""
-        if not self.audio_buffer:
-            return
-            
         try:
-            # Transcribe with Groq (faster than OpenAI)
-            transcription = await self.transcribe_audio(self.audio_buffer)
+            # Convert mulaw audio to WAV file for OpenAI Whisper
+            wav_file_path = self.audio_converter.save_wav_for_whisper()
+            if not wav_file_path:
+                return
+                
+            # Transcribe using OpenAI Whisper
+            transcription = await self.transcribe_audio(wav_file_path)
+            
+            # Clean up temporary file
+            self.audio_converter.cleanup_temp_file(wav_file_path)
+            
             if not transcription.strip():
                 return
                 
@@ -214,24 +221,21 @@ class CallSession:
         except Exception as e:
             print(f"❌ Error in transcribe_and_respond: {e}")
     
-    async def transcribe_audio(self, audio_bytes: bytes) -> str:
+    async def transcribe_audio(self, wav_file_path: str) -> str:
         """Transcribe audio using OpenAI Whisper"""
         if not openai_client:
             print("⚠️ OpenAI client not available for transcription")
             return "test input"  # Return test input for demo
             
         try:
-            # Create audio file for OpenAI API
-            from io import BytesIO
-            audio_file = BytesIO(audio_bytes)
-            audio_file.name = "audio.wav"
-            
-            # Use OpenAI's Whisper model
-            transcription = await openai_client.audio.transcriptions.create(
-                file=audio_file,
-                model="whisper-1",
-                language=self.language
-            )
+            # Open the converted WAV file
+            with open(wav_file_path, "rb") as audio_file:
+                # Use OpenAI's Whisper model
+                transcription = await openai_client.audio.transcriptions.create(
+                    file=audio_file,
+                    model="whisper-1",
+                    language=self.language
+                )
             
             return transcription.text
             
@@ -665,9 +669,8 @@ async def websocket_media_handler(websocket: WebSocket, call_sid: str):
                 media = message.get("media", {})
                 payload = media.get("payload", "")
                 if payload:
-                    # Decode base64 audio
-                    audio_data = base64.b64decode(payload)
-                    await session.process_audio_chunk(audio_data)
+                    # Pass base64 payload directly to converter (don't decode)
+                    await session.process_audio_chunk(payload)
                     
             elif event == "stop":
                 print(f"🛑 Media stream stopped for {call_sid}")
